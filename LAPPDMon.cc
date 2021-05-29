@@ -10,6 +10,7 @@
 #include <TMath.h>
 #include <TFile.h>
 #include <TStyle.h>
+#include <TSystem.h>
 
 #include <pmonitor/pmonitor.h>
 #include <Event/Event.h>
@@ -21,10 +22,29 @@ LAPPDMon::LAPPDMon()
 {
   gStyle->SetTitleFontSize(0.08);
 
-  init_done = 0;
-  NBOARDS = 4;
+  _init_done = 0;
+  _first_run = 1;
+  NBOARDS = 1;
 
-  draw_waveforms = 1;
+  _draw_waveforms = 1;
+
+  _run_number = -999999;
+
+  /*
+  // Laser Data just prior to test beam
+  const char *caen_calibfname[MAXBOARDS] = {
+    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0097_5G.dat",
+    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0106_5G.dat",
+    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0081_5G.dat",
+    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0087_5G.dat",
+    "xxx",
+    "xxx",
+    "xxx",
+    "xxx",
+    "xxx",
+    "xxx"
+  };
+  */
 
   const char *caen_calibfname[MAXBOARDS] = {
     "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0097_5G.dat",
@@ -64,7 +84,7 @@ LAPPDMon::LAPPDMon()
   TString title;
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
-    if ( draw_waveforms )
+    if ( _draw_waveforms )
     {
       name = "c_chdisplay"; name += iboard;
       title = "Ch Display, Board "; title += iboard;
@@ -123,6 +143,38 @@ LAPPDMon::LAPPDMon()
 // Event Loop
 int LAPPDMon::process_event (Event * e)
 {
+  // Look for begin run (or as backup runnumber change)
+  if ( e->getEvtType() == 9 || e->getRunNumber() != _run_number )
+  {
+    if ( _first_run == 1 )
+    {
+      _first_run = 0;
+    }
+
+    int new_run_number = e->getRunNumber();
+    cout << "Found Start of Run " << new_run_number << endl;
+
+    // Reset histograms
+    h2_hitmap->Reset(); // might have to delete and remake if geometry changes
+    h_hittime->Reset();
+    h_hitampl->Reset();
+  }
+
+  // End Run
+  if ( e->getEvtType() == 12 )
+  {
+    cout << "Found End of Run " << _run_number << endl;
+    // Save Histograms
+    TString cmd;
+    TString dir = "~/onlmon_out/"; dir += _run_number;
+    cmd = "mkdir -p "; cmd += dir;
+    gSystem->Exec( cmd );
+
+    TString jpgname = dir; jpgname += "hit_time.jpg";
+    h_hittime->SaveAs( jpgname );
+  }
+
+  _run_number = e->getRunNumber();
 
   int evtno = e->getEvtSequence();
   if ( evtno%1000 == 0 ) cout << "Event " << evtno << endl;
@@ -176,7 +228,7 @@ int LAPPDMon::process_event (Event * e)
     }
   }
 
-  draw_waveforms = 0;
+  _draw_waveforms = 0;
 
   // Find hits
   for (int iboard=0; iboard<NBOARDS; iboard++)
@@ -212,7 +264,7 @@ int LAPPDMon::process_event (Event * e)
           cout << data_ch << "\t" << xpos << "\t" << ypos << "\t" << integ << "\t" << x[isamp] << endl;
           if ( x[isamp]<200 )
           {
-            draw_waveforms = 1;
+            _draw_waveforms = 1;
           }
 
           if ( integ>40 )
@@ -239,9 +291,9 @@ int LAPPDMon::process_event (Event * e)
 
   // Draw the waveforms
   TString name;
-  if ( draw_waveforms )
+  if ( _draw_waveforms )
   {
-    for (int iboard=2; iboard<NBOARDS; iboard++)
+    for (int iboard=0; iboard<NBOARDS; iboard++)
     {
       if ( iboard<2 ) continue;
       for (int ich=0; ich<NCHPERBOARD; ich++)

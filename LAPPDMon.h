@@ -24,16 +24,19 @@ public:
 
 protected:
 
-  int init_done = 0;
   static const int NCHPERBOARD = 34;	// Num ch's in each V1742
   static const int MAXCH=8*NCHPERBOARD;
   static const int MAXBOARDS = 10;	// Max Number of V1742's
 
-  int NBOARDS = 2;		// Num V1742's
+  int NBOARDS = 1;		// Num V1742's
   int NCH = 0;			// Num total ch's
   int packetlist[MAXBOARDS] = { 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 }; // list of packets
 
-  int draw_waveforms; // whether to draw the pulses
+  int _draw_waveforms; // whether to draw the pulses
+
+  int _init_done = 0;
+  int _run_number;
+  int _first_run;
 
   CAEN_Calib *caen_calib[MAXBOARDS];
 
