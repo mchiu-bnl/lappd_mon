@@ -27,10 +27,12 @@ protected:
   static const int NCHPERBOARD = 34;	// Num ch's in each V1742
   static const int MAXCH=8*NCHPERBOARD;
   static const int MAXBOARDS = 10;	// Max Number of V1742's
+  static const int MAXPMTS = 3;	        // Max Number of PMTs
 
-  int NBOARDS = 1;		// Num V1742's
-  int NCH = 0;			// Num total ch's
-  int packetlist[MAXBOARDS] = { 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 }; // list of packets
+  int NBOARDS;		// Num V1742's
+  int NPMTS;		// Num PMT's
+  int NCH;			// Num total ch's
+  int packetlist[MAXBOARDS] = { 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010 }; // list of packets
 
   int _draw_waveforms; // whether to draw the pulses
 
@@ -48,14 +50,14 @@ protected:
   std::vector<std::pair<int,int>> *chmap;
 
   // Display of each waveform
-  TCanvas *c_chdisplay[10];
-  TCanvas *c_hitmap;
+  TCanvas *c_chdisplay[MAXBOARDS];
+  TCanvas *c_hitmap[MAXPMTS];
   TCanvas *c_hittime;
   TCanvas *c_hitampl;
 
-  TH2 *h2_hitmap;   // hit distribution on detector
-  TH1 *h_hittime;   // hit time distribution
-  TH1 *h_hitampl;   // hit ampl distribution
+  TH2 *h2_hitmap[MAXPMTS];   // hit distribution on detector
+  TH1 *h_hittime[MAXPMTS];   // hit time distribution
+  TH1 *h_hitampl[MAXPMTS];   // hit ampl distribution
 
 };
 

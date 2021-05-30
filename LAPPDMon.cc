@@ -25,6 +25,7 @@ LAPPDMon::LAPPDMon()
   _init_done = 0;
   _first_run = 1;
   NBOARDS = 1;
+  NPMTS = 1;
 
   _draw_waveforms = 1;
 
@@ -73,20 +74,42 @@ LAPPDMon::LAPPDMon()
   h2_SED = new TH2F( "h2_SED","V1742 Single Event Display", 34, -0.5, 33.5, 1024 , -0.5, 1023.5); 
 
   // Hit Distribution
-  h2_hitmap = new TH2F( "h2_hitmap","hit distribution",32,0,32,32,0,32);
-  h_hitampl = new TH1F( "h_hitampl","hit amplitudes",100,0,1000);
-  h_hittime = new TH1F( "h_hittime","hit times",1024,0,1024);
+  TString name; 
+  TString title;
+  for (int ipmt=0; ipmt<NPMTS; ipmt++)
+  {
+    name = "h2_hitmap"; name += ipmt;
+    title = "hitmap, pmt "; title += ipmt;
+    h2_hitmap[ipmt] = new TH2F( name, title, 32,0,32,32,0,32);  // need to update for smaller pmt
 
-  c_hitmap = new TCanvas("hitmap","hit distribution",800,800);
-  c_hittime = new TCanvas("hittimes","hit times",640,480);
-  c_hitampl = new TCanvas("hitampl","hit amplitudes",640,480);
+    name = "h_hitampl"; name += ipmt;
+    title = "amplitudes, pmt "; title += ipmt;
+    h_hitampl[ipmt] = new TH1F( name, title,100,0,1000);
 
-  pupdate( c_hitmap, 30 );
+    name = "h_hittime"; name += ipmt;
+    title = "times, pmt "; title += ipmt;
+    h_hittime[ipmt] = new TH1F( name, title,1024,0,1024);
+
+    name = "c_hitmap"; name += ipmt;
+    title = "hits, pmt "; title += ipmt;
+    c_hitmap[ipmt] = new TCanvas(name,title,800,800);
+
+  }
+
+  int xwid = NPMTS*480;
+  c_hittime = new TCanvas("hittimes","hit times",xwid,480);
+  c_hittime->Divide(NPMTS,1);
+  c_hitampl = new TCanvas("hitampl","hit amplitudes",xwid,480);
+  c_hitampl->Divide(NPMTS,1);
+
+
+  for (int ipmt=0; ipmt<NPMTS; ipmt++)
+  {
+    pupdate( c_hitmap[ipmt], 30 );
+  }
   pupdate( c_hittime, 30 );
   pupdate( c_hitampl, 30 );
 
-  TString name; 
-  TString title;
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
     if ( _draw_waveforms )
@@ -162,9 +185,12 @@ int LAPPDMon::process_event (Event * e)
     cout << "Found Start of Run " << new_run_number << endl;
 
     // Reset histograms
-    h2_hitmap->Reset(); // might have to delete and remake if geometry changes
-    h_hittime->Reset();
-    h_hitampl->Reset();
+    for (int ipmt=0; ipmt<NPMTS; ipmt++)
+    {
+      h2_hitmap[ipmt]->Reset(); // might have to delete and remake if geometry changes
+      h_hittime[ipmt]->Reset();
+      h_hitampl[ipmt]->Reset();
+    }
   }
 
   // End Run
@@ -177,8 +203,13 @@ int LAPPDMon::process_event (Event * e)
     cmd = "mkdir -p "; cmd += dir;
     gSystem->Exec( cmd );
 
-    TString jpgname = dir; jpgname += "hit_time.jpg";
-    h_hittime->SaveAs( jpgname );
+    TString pngname;
+    for (int ipmt=0; ipmt<NPMTS; ipmt++)
+    {
+      pngname = dir; pngname += h_hittime[ipmt]->GetName(); pngname += ".png";
+      cout << pngname << endl;
+      h_hittime[ipmt]->SaveAs( pngname );
+    }
   }
 
   _run_number = e->getRunNumber();
@@ -238,6 +269,8 @@ int LAPPDMon::process_event (Event * e)
   // Find hits
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
+    int pmt = 0;  // hard-coded for now until we know what is plugged in where
+
     for (int ich=0; ich<NCHPERBOARD-2; ich++)
     {
       int data_ch = iboard*(NCHPERBOARD-2) + ich; // data_ch includes only data channels
@@ -268,9 +301,9 @@ int LAPPDMon::process_event (Event * e)
 
           if ( integ>40 )
           {
-            h2_hitmap->Fill( xpos, ypos, integ );
-            h_hitampl->Fill( integ );
-            h_hittime->Fill( x[isamp] );
+            h2_hitmap[pmt]->Fill( xpos, ypos, integ );
+            h_hitampl[pmt]->Fill( integ );
+            h_hittime[pmt]->Fill( x[isamp] );
           }
 
           break;
@@ -279,14 +312,18 @@ int LAPPDMon::process_event (Event * e)
     }
   }
 
-  c_hitmap->cd();
-  h2_hitmap->Draw("colz");
+  // Do I need to draw at all (might be done in pupdate)
+  for (int ipmt = 0; ipmt<NPMTS; ipmt++)
+  {
+    c_hitmap[ipmt]->cd();
+    h2_hitmap[ipmt]->Draw("colz");
 
-  c_hittime->cd();
-  h_hittime->Draw();
+    c_hittime->cd(ipmt+1);
+    h_hittime[ipmt]->Draw();
 
-  c_hitampl->cd();
-  h_hitampl->Draw();
+    c_hitampl->cd(ipmt+1);
+    h_hitampl[ipmt]->Draw();
+  }
 
   // Draw the waveforms
   TString name;
