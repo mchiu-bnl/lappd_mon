@@ -16,7 +16,7 @@ ROOTGLIBS=`root-config --glibs`
 AC_SUBST(ROOTGLIBS)
 
 if test $ac_cv_prog_gxx = yes; then
-   CXXFLAGS="$CXXFLAGS -std=c++17 -g -O2 -Wall -Werror"
+   CXXFLAGS="$CXXFLAGS -std=c++11 -g -O2 -Wall -Werror"
 fi
 
 AC_OUTPUT(Makefile)

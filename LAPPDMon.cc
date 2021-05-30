@@ -47,10 +47,10 @@ LAPPDMon::LAPPDMon()
   */
 
   const char *caen_calibfname[MAXBOARDS] = {
-    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0097_5G.dat",
-    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0106_5G.dat",
-    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0081_5G.dat",
-    "/phenix/u/chiu/sphenix/lappd/caen_calibration/calib_0087_5G.dat",
+    "caen_calibration/calib_0087_5G.dat",
+    "caen_calibration/calib_0097_5G.dat",
+    "caen_calibration/calib_0106_5G.dat",
+    "caen_calibration/calib_0081_5G.dat",
     "xxx",
     "xxx",
     "xxx",
@@ -61,9 +61,10 @@ LAPPDMon::LAPPDMon()
 
   // Get Mapping
   //TFile *mapping_tfile = new TFile("/phenix/u/chiu/sphenix/lappd/Mapping/L00i.map.v00.root","READ");
-  TFile *mapping_tfile = new TFile("/phenix/u/chiu/sphenix/lappd/Mapping/L02b.map.v00.root","READ");
+  //TFile *mapping_tfile = new TFile("Mapping/L02b.map.v00.root","READ");
+  TFile *mapping_tfile = new TFile("Mapping/X00e.map.v00.root","READ");
   mapping_tfile->GetObject("bl_chmap",chmap);  // get the feech->position map
-  //cout << "map " << (*chmap)[10].first << endl;
+  cout << "map " << (*chmap)[10].first << endl;
 
   // Set the total number of channels
   NCH = NBOARDS*NCHPERBOARD;
@@ -80,6 +81,10 @@ LAPPDMon::LAPPDMon()
   c_hittime = new TCanvas("hittimes","hit times",640,480);
   c_hitampl = new TCanvas("hitampl","hit amplitudes",640,480);
 
+  pupdate( c_hitmap, 30 );
+  pupdate( c_hittime, 30 );
+  pupdate( c_hitampl, 30 );
+
   TString name; 
   TString title;
   for (int iboard=0; iboard<NBOARDS; iboard++)
@@ -89,7 +94,9 @@ LAPPDMon::LAPPDMon()
       name = "c_chdisplay"; name += iboard;
       title = "Ch Display, Board "; title += iboard;
       c_chdisplay[iboard] = new TCanvas(name,title,1200,850);
-      c_chdisplay[iboard]->Divide(8,5,-1,-1);
+      //c_chdisplay[iboard]->Divide(8,5,-1,-1);
+      c_chdisplay[iboard]->Divide(8,5);
+      pupdate( c_chdisplay[iboard], 60 );
     }
 
     for (int ich=0; ich<NCHPERBOARD; ich++)
@@ -134,7 +141,6 @@ LAPPDMon::LAPPDMon()
     // Get CAEN Calibrations
     caen_calib[iboard] = new CAEN_Calib( caen_calibfname[iboard] );
 
-    //pupdate( c_chdisplay[iboard], 15 );
   }
 
 }
@@ -143,6 +149,7 @@ LAPPDMon::LAPPDMon()
 // Event Loop
 int LAPPDMon::process_event (Event * e)
 {
+
   // Look for begin run (or as backup runnumber change)
   if ( e->getEvtType() == 9 || e->getRunNumber() != _run_number )
   {
@@ -209,7 +216,7 @@ int LAPPDMon::process_event (Event * e)
 
       if ( counter<2 )
       {
-        cout << samples << endl;
+        cout << "Nsamples = " << samples << endl;
         counter++;
       }
 
@@ -228,13 +235,9 @@ int LAPPDMon::process_event (Event * e)
     }
   }
 
-  _draw_waveforms = 0;
-
   // Find hits
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
-    if ( iboard<2 ) continue;
-
     for (int ich=0; ich<NCHPERBOARD-2; ich++)
     {
       int data_ch = iboard*(NCHPERBOARD-2) + ich; // data_ch includes only data channels
@@ -261,11 +264,7 @@ int LAPPDMon::process_event (Event * e)
           int xpos = (*chmap)[data_ch].first;
           int ypos = (*chmap)[data_ch].second;
 
-          cout << data_ch << "\t" << xpos << "\t" << ypos << "\t" << integ << "\t" << x[isamp] << endl;
-          if ( x[isamp]<200 )
-          {
-            _draw_waveforms = 1;
-          }
+          //cout << data_ch << "\t" << xpos << "\t" << ypos << "\t" << integ << "\t" << x[isamp] << endl;
 
           if ( integ>40 )
           {
@@ -295,7 +294,6 @@ int LAPPDMon::process_event (Event * e)
   {
     for (int iboard=0; iboard<NBOARDS; iboard++)
     {
-      if ( iboard<2 ) continue;
       for (int ich=0; ich<NCHPERBOARD; ich++)
       {
         c_chdisplay[iboard]->cd(ich+1);
@@ -312,8 +310,8 @@ int LAPPDMon::process_event (Event * e)
         g_pulse[iboard][ich]->Draw("ap");
       }
 
-      name = "pics/bd"; name += iboard; name += "evt"; name += evtno; name += ".png";
-      c_chdisplay[iboard]->SaveAs(name);
+      //name = "pics/bd"; name += iboard; name += "evt"; name += evtno; name += ".png";
+      //c_chdisplay[iboard]->SaveAs(name);
     }
   }
 
