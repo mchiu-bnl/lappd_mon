@@ -24,10 +24,10 @@ LAPPDMon::LAPPDMon()
 
   _init_done = 0;
   _first_run = 1;
-  NBOARDS = 1;
+  NBOARDS = 8;      // Number of CAEN V1742 Boards
   NPMTS = 1;
 
-  _draw_waveforms = 1;
+  _draw_waveforms = 1;  // Whether to draw the waveforms
 
   _run_number = -999999;
 
@@ -48,16 +48,14 @@ LAPPDMon::LAPPDMon()
   */
 
   const char *caen_calibfname[MAXBOARDS] = {
-    "caen_calibration/calib_0087_5G.dat",
-    "caen_calibration/calib_0097_5G.dat",
+    "caen_calibration/calib_12064_5G.dat",
     "caen_calibration/calib_0106_5G.dat",
+    "caen_calibration/calib_10906_5G.dat",
+    "caen_calibration/calib_12067_5G.dat",
     "caen_calibration/calib_0081_5G.dat",
-    "xxx",
-    "xxx",
-    "xxx",
-    "xxx",
-    "xxx",
-    "xxx"
+    "caen_calibration/calib_0097_5G.dat",
+    "caen_calibration/calib_0120_5G.dat",
+    "caen_calibration/calib_0087_5G.dat"
   };
 
   // Get Mapping
@@ -103,15 +101,21 @@ LAPPDMon::LAPPDMon()
   c_hitampl->Divide(NPMTS,1);
 
 
+  /*
   for (int ipmt=0; ipmt<NPMTS; ipmt++)
   {
     pupdate( c_hitmap[ipmt], 30 );
   }
   pupdate( c_hittime, 30 );
   pupdate( c_hitampl, 30 );
+  */
 
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
+    // Get CAEN Calibrations
+    cout << "Getting calibs for packet " << packetlist[iboard] << endl;
+    caen_calib[iboard] = new CAEN_Calib( caen_calibfname[iboard] );
+
     if ( _draw_waveforms )
     {
       name = "c_chdisplay"; name += iboard;
@@ -119,7 +123,7 @@ LAPPDMon::LAPPDMon()
       c_chdisplay[iboard] = new TCanvas(name,title,1200,850);
       //c_chdisplay[iboard]->Divide(8,5,-1,-1);
       c_chdisplay[iboard]->Divide(8,5);
-      pupdate( c_chdisplay[iboard], 60 );
+      //pupdate( c_chdisplay[iboard], 60 );
     }
 
     for (int ich=0; ich<NCHPERBOARD; ich++)
@@ -161,9 +165,6 @@ LAPPDMon::LAPPDMon()
       g_pulse[iboard][ich]->GetYaxis()->SetLabelSize(0.065);
     }
 
-    // Get CAEN Calibrations
-    caen_calib[iboard] = new CAEN_Calib( caen_calibfname[iboard] );
-
   }
 
 }
@@ -179,6 +180,22 @@ int LAPPDMon::process_event (Event * e)
     if ( _first_run == 1 )
     {
       _first_run = 0;
+
+      // set up pupdate
+      for (int ipmt=0; ipmt<NPMTS; ipmt++)
+      {
+        pupdate( c_hitmap[ipmt], 60 );
+      }
+      pupdate( c_hittime, 60 );
+      pupdate( c_hitampl, 60 );
+
+      for (int iboard=0; iboard<NBOARDS; iboard++)
+      {
+        if ( _draw_waveforms )
+        {
+          pupdate( c_chdisplay[iboard], 60 );
+        }
+      }
     }
 
     int new_run_number = e->getRunNumber();
@@ -197,19 +214,21 @@ int LAPPDMon::process_event (Event * e)
   if ( e->getEvtType() == 12 )
   {
     cout << "Found End of Run " << _run_number << endl;
+
     // Save Histograms
+    /*
     TString cmd;
-    TString dir = "~/onlmon_out/"; dir += _run_number;
+    TString dir = "/home/eic/fnal_ops_2021/onlmon_out/"; dir += _run_number; dir += "/";
     cmd = "mkdir -p "; cmd += dir;
     gSystem->Exec( cmd );
 
     TString pngname;
-    for (int ipmt=0; ipmt<NPMTS; ipmt++)
-    {
-      pngname = dir; pngname += h_hittime[ipmt]->GetName(); pngname += ".png";
-      cout << pngname << endl;
-      h_hittime[ipmt]->SaveAs( pngname );
-    }
+    pngname = dir; pngname += "hittime.png";
+    cout << "Saving " << pngname << endl;
+    pend_update(c_hittime);
+    c_hittime->SaveAs( pngname );
+    pupdate(c_hittime,60);
+    */
   }
 
   _run_number = e->getRunNumber();
@@ -238,7 +257,13 @@ int LAPPDMon::process_event (Event * e)
 
     if (p)  // skip unfound packets
     {
-      //cout << "Processing packet " << packetlist[ipkt] << endl;
+      static int c2 = 0;
+
+      if ( c2 < 8 )
+      {
+        cout << "Processing packet " << packetlist[ipkt] << endl;
+        c2++;
+      }
 
       // Apply CAEN calib
       caen_calib[ipkt]->apply_calibs(p);

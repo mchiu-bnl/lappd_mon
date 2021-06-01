@@ -31,8 +31,14 @@ int pinit()
 int process_event (Event * e)
 {
 
+  static int counter = 0;
+
   int evtno = e->getEvtSequence();
-  cout << "Processing Event " << evtno << endl;
+  if ( counter<10 || evtno%1000 == 0 )
+  {
+    cout << "Processing Event " << evtno << endl;
+    counter++;
+  }
 
   lappdmon->process_event(e);
 

@@ -36,6 +36,10 @@ void CAEN_Calib::load_calibs( const char *calibfname )
     cerr << "ERROR opening file " << calibfname << endl;
     return;
   }
+  else
+  {
+    cout << "Reading calibrations from " << calibfname << endl;
+  }
 
   int index;
   for (int ichip = 0; ichip < 4; ichip++)
