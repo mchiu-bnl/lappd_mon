@@ -42,10 +42,9 @@ protected:
 
   CAEN_Calib *caen_calib[MAXBOARDS];
 
-  TH1 *h_pulse[MAXBOARDS][MAXCH];
-  TGraph *g_pulse[MAXBOARDS][MAXCH];
-  TH2 *h2_data; 
-  TH2 *h2_SED; 
+  TH1 *h_pulse[MAXBOARDS][NCHPERBOARD];
+  TGraph *g_pulse[MAXBOARDS][NCHPERBOARD];
+  TH2 *h2_all[MAXCH]; 
 
   std::vector<std::pair<int,int>> *chmap;
 

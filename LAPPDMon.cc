@@ -6,6 +6,7 @@
 #include <TH1.h>
 #include <TH2.h>
 #include <TCanvas.h>
+#include <TPad.h>
 #include <TGraph.h>
 #include <TMath.h>
 #include <TFile.h>
@@ -21,11 +22,12 @@ using namespace std;
 LAPPDMon::LAPPDMon()
 {
   gStyle->SetTitleFontSize(0.08);
+  gStyle->SetOptStat(0);
 
   _init_done = 0;
   _first_run = 1;
   NBOARDS = 8;      // Number of CAEN V1742 Boards
-  NPMTS = 1;
+  NPMTS = 2;
 
   _draw_waveforms = 1;  // Whether to draw the waveforms
 
@@ -48,29 +50,31 @@ LAPPDMon::LAPPDMon()
   */
 
   const char *caen_calibfname[MAXBOARDS] = {
-    "caen_calibration/calib_12064_5G.dat",
-    "caen_calibration/calib_0106_5G.dat",
-    "caen_calibration/calib_10906_5G.dat",
-    "caen_calibration/calib_12067_5G.dat",
-    "caen_calibration/calib_0081_5G.dat",
-    "caen_calibration/calib_0097_5G.dat",
-    "caen_calibration/calib_0120_5G.dat",
-    "caen_calibration/calib_0087_5G.dat"
+    "caen_calibration/calib_0097_2G.dat",
+    "caen_calibration/calib_0106_2G.dat",
+    "caen_calibration/calib_12064_2G.dat",
+    "caen_calibration/calib_10906_2G.dat",
+    "caen_calibration/calib_12067_2G.dat",
+    "caen_calibration/calib_0081_2G.dat",
+    "caen_calibration/calib_0120_2G.dat",
+    "caen_calibration/calib_0087_2G.dat"
   };
 
   // Get Mapping
   //TFile *mapping_tfile = new TFile("/phenix/u/chiu/sphenix/lappd/Mapping/L00i.map.v00.root","READ");
   //TFile *mapping_tfile = new TFile("Mapping/L02b.map.v00.root","READ");
-  TFile *mapping_tfile = new TFile("Mapping/X00e.map.v00.root","READ");
-  mapping_tfile->GetObject("bl_chmap",chmap);  // get the feech->position map
-  cout << "map " << (*chmap)[10].first << endl;
+  //TString map_fname = "Mapping/X00e.map.v00.root";
+  TString map_fname = "/home/eic/chiu/Mapping/L00i.map.v00.root";
+  TFile *mapping_tfile = new TFile(map_fname,"READ");
+  const char *map_name = "tl_chmap";
+  mapping_tfile->GetObject(map_name,chmap);  // get the feech->position map
+  cout << "Reading map " << map_fname << " : " << map_name << endl;
+  //cout << "map " << (*chmap)[10].first << endl;
 
   // Set the total number of channels
   NCH = NBOARDS*NCHPERBOARD;
 
-  h2_data = new TH2F( "h2_data","Integrated data", 1024, -0.5, 1023.5, NCH, 0, NCH); 
-  h2_SED = new TH2F( "h2_SED","V1742 Single Event Display", 34, -0.5, 33.5, 1024 , -0.5, 1023.5); 
-
+  //** Book Histograms
   // Hit Distribution
   TString name; 
   TString title;
@@ -78,7 +82,10 @@ LAPPDMon::LAPPDMon()
   {
     name = "h2_hitmap"; name += ipmt;
     title = "hitmap, pmt "; title += ipmt;
-    h2_hitmap[ipmt] = new TH2F( name, title, 32,0,32,32,0,32);  // need to update for smaller pmt
+    // need to update depending on PMT
+    int xmax = 32;
+    int ymax = 32;
+    h2_hitmap[ipmt] = new TH2F( name, title, xmax,0,(double)xmax,ymax,0,(double)ymax);
 
     name = "h_hitampl"; name += ipmt;
     title = "amplitudes, pmt "; title += ipmt;
@@ -94,21 +101,19 @@ LAPPDMon::LAPPDMon()
 
   }
 
+  // 2-D hists containing all waveforms
+  for (int ich=0; ich<NCH; ich++)
+  {
+    name = "h2_all"; name += ich;
+    h2_all[ich] = new TH2F(name,name,1024,0,1024,2050,-2000, 50);
+  }
+
   int xwid = NPMTS*480;
   c_hittime = new TCanvas("hittimes","hit times",xwid,480);
   c_hittime->Divide(NPMTS,1);
   c_hitampl = new TCanvas("hitampl","hit amplitudes",xwid,480);
   c_hitampl->Divide(NPMTS,1);
 
-
-  /*
-  for (int ipmt=0; ipmt<NPMTS; ipmt++)
-  {
-    pupdate( c_hitmap[ipmt], 30 );
-  }
-  pupdate( c_hittime, 30 );
-  pupdate( c_hitampl, 30 );
-  */
 
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
@@ -123,7 +128,6 @@ LAPPDMon::LAPPDMon()
       c_chdisplay[iboard] = new TCanvas(name,title,1200,850);
       //c_chdisplay[iboard]->Divide(8,5,-1,-1);
       c_chdisplay[iboard]->Divide(8,5);
-      //pupdate( c_chdisplay[iboard], 60 );
     }
 
     for (int ich=0; ich<NCHPERBOARD; ich++)
@@ -162,7 +166,7 @@ LAPPDMon::LAPPDMon()
       g_pulse[iboard][ich]->SetMarkerSize(0.1);
       g_pulse[iboard][ich]->SetLineColor(4);
       g_pulse[iboard][ich]->GetXaxis()->SetLabelSize(0.08);
-      g_pulse[iboard][ich]->GetYaxis()->SetLabelSize(0.065);
+      g_pulse[iboard][ich]->GetYaxis()->SetLabelSize(0.05);
     }
 
   }
@@ -182,18 +186,19 @@ int LAPPDMon::process_event (Event * e)
       _first_run = 0;
 
       // set up pupdate
+      int update_time = 20;   // in seconds
       for (int ipmt=0; ipmt<NPMTS; ipmt++)
       {
-        pupdate( c_hitmap[ipmt], 60 );
+        pupdate( c_hitmap[ipmt], update_time );
       }
-      pupdate( c_hittime, 60 );
-      pupdate( c_hitampl, 60 );
+      pupdate( c_hittime, update_time );
+      pupdate( c_hitampl, update_time );
 
       for (int iboard=0; iboard<NBOARDS; iboard++)
       {
         if ( _draw_waveforms )
         {
-          pupdate( c_chdisplay[iboard], 60 );
+          pupdate( c_chdisplay[iboard], update_time );
         }
       }
     }
@@ -208,6 +213,10 @@ int LAPPDMon::process_event (Event * e)
       h_hittime[ipmt]->Reset();
       h_hitampl[ipmt]->Reset();
     }
+    for (int ich=0; ich<NCH; ich++)
+    {
+      h2_all[ich]->Reset();
+    }
   }
 
   // End Run
@@ -216,19 +225,20 @@ int LAPPDMon::process_event (Event * e)
     cout << "Found End of Run " << _run_number << endl;
 
     // Save Histograms
-    /*
     TString cmd;
     TString dir = "/home/eic/fnal_ops_2021/onlmon_out/"; dir += _run_number; dir += "/";
     cmd = "mkdir -p "; cmd += dir;
     gSystem->Exec( cmd );
 
-    TString pngname;
-    pngname = dir; pngname += "hittime.png";
-    cout << "Saving " << pngname << endl;
-    pend_update(c_hittime);
-    c_hittime->SaveAs( pngname );
-    pupdate(c_hittime,60);
-    */
+    //TString pngname = dir; pngname += "all.png";
+    TString savefname = dir; savefname += "onlmon.root";
+    cout << "Saving " << savefname << endl;
+    TFile savefile(savefname,"RECREATE");
+    for (int ich=0; ich<NCH; ich++)
+    {
+      h2_all[ich]->Write();
+    }
+    savefile.Close();
   }
 
   _run_number = e->getRunNumber();
@@ -239,7 +249,6 @@ int LAPPDMon::process_event (Event * e)
   static int counter = 0;
 
   // Reset Event by Event Plots
-  h2_SED->Reset(); 
   for (int iboard=0; iboard<NBOARDS; iboard++)
   {
     for (int ich=0; ich<NCHPERBOARD; ich++)
@@ -278,10 +287,24 @@ int LAPPDMon::process_event (Event * e)
 
       for (int ich=0; ich<NCHPERBOARD; ich++)
       {
+        int feech = ipkt*NCHPERBOARD + ich;
+
+        // randomly pick sample 10-50 for pedestal
+        float ped = 0;
+        float nsamps_ped = 0.;
+        for (int isamp=10; isamp<50; isamp++)
+        {
+          float adc_corr = caen_calib[ipkt]->corrected(ich, isamp);
+          ped += adc_corr;
+          nsamps_ped += 1.0;
+        }
+        ped = ped/nsamps_ped;
 
         for (int is=0; is<samples; is++)
         {
-          g_pulse[board][ich]->SetPoint(is, is, caen_calib[ipkt]->corrected(ich, is));
+          float adc_corr = caen_calib[ipkt]->corrected(ich, is);
+          g_pulse[board][ich]->SetPoint(is, is, adc_corr-ped);
+          h2_all[feech]->Fill( is, adc_corr-ped );
 
         } // end loop over samples on one board
       } // end loop over ch's on one board
@@ -299,6 +322,9 @@ int LAPPDMon::process_event (Event * e)
     for (int ich=0; ich<NCHPERBOARD-2; ich++)
     {
       int data_ch = iboard*(NCHPERBOARD-2) + ich; // data_ch includes only data channels
+
+      // LAPPD is plugged into data ch 32-159
+      if ( data_ch<32 || data_ch >= 160 ) pmt = 1;
 
       // Get ped
       Double_t *x = g_pulse[iboard][ich]->GetX();
@@ -319,14 +345,22 @@ int LAPPDMon::process_event (Event * e)
 
           integ = -integ;
 
-          int xpos = (*chmap)[data_ch].first;
-          int ypos = (*chmap)[data_ch].second;
+          int xpos = 0;
+          int ypos = 0;
+          if ( data_ch > 31 && data_ch < 160 )  // current LAPPD channels
+          {
+            xpos = (*chmap)[data_ch-32].first;
+            ypos = (*chmap)[data_ch-32].second;
+          }
 
           //cout << data_ch << "\t" << xpos << "\t" << ypos << "\t" << integ << "\t" << x[isamp] << endl;
 
           if ( integ>40 )
           {
-            h2_hitmap[pmt]->Fill( xpos, ypos, integ );
+            if ( data_ch > 31 && data_ch < 160 )  // current LAPPD channels
+            {
+              h2_hitmap[pmt]->Fill( xpos, ypos, integ );
+            }
             h_hitampl[pmt]->Fill( integ );
             h_hittime[pmt]->Fill( x[isamp] );
           }
@@ -352,7 +386,7 @@ int LAPPDMon::process_event (Event * e)
 
   // Draw the waveforms
   TString name;
-  if ( _draw_waveforms )
+  if ( _draw_waveforms == 1 )
   {
     for (int iboard=0; iboard<NBOARDS; iboard++)
     {
@@ -374,7 +408,14 @@ int LAPPDMon::process_event (Event * e)
 
       //name = "pics/bd"; name += iboard; name += "evt"; name += evtno; name += ".png";
       //c_chdisplay[iboard]->SaveAs(name);
+      /*
+      c_chdisplay[iboard]->cd();
+      gPad->Modified();
+      gPad->Update();
+      */
     }
+
+
   }
 
   return 0;
